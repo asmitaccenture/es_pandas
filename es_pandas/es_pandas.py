@@ -181,6 +181,8 @@ class es_pandas(object):
                example: number_of_shards, number_of_replicas, refresh_interval
         :return:
         '''
+        
+        index=doc_type
         tmpl_exits = self.es.indices.exists_template(name=doc_type)
         if tmpl_exits and (not delete):
             return
@@ -190,20 +192,29 @@ class es_pandas(object):
 
         if isinstance(df, pd.DataFrame):
             iter_dict = df.dtypes.to_dict()
+            for key, data_type in iter_dict.items():
+                if key in list(df.select_dtypes(include = "int64").columns):
+                    columns_body[key] = {'type': 'long'}
+                elif key in list(df.select_dtypes(include = "float").columns):
+                    columns_body[key] = {'type': 'float'}
+                else:
+                    columns_body[key] = {'type': 'keyword', 'ignore_above': '256'}
         elif isinstance(df, dict):
             iter_dict = df
+            for key, data_type in iter_dict.items():
+                type_str = getattr(data_type, 'name', data_type).lower()
+                if 'int' in type_str:
+                    columns_body[key] = {'type': 'long'}
+                elif 'datetime' in type_str:
+                    columns_body[key] = {'type': 'date'}
+                elif 'float' in type_str:
+                    columns_body[key] = {'type': 'float'}
+                else:
+                    columns_body[key] = {'type': 'keyword', 'ignore_above': '256'}
         else:
             raise Exception('init tmpl type is error, only accept DataFrame or dict of head with type mapping')
-        for key, data_type in iter_dict.items():
-            type_str = getattr(data_type, 'name', data_type).lower()
-            if 'int' in type_str:
-                columns_body[key] = {'type': 'long'}
-            elif 'datetime' in type_str:
-                columns_body[key] = {'type': 'date'}
-            elif 'float' in type_str:
-                columns_body[key] = {'type': 'float'}
-            else:
-                columns_body[key] = {'type': 'keyword', 'ignore_above': '256'}
+
+
 
         tmpl = {
             'index_patterns': index_patterns,
@@ -216,7 +227,8 @@ class es_pandas(object):
         else:
             tmpl['mappings'] = {'_default_': {'properties': columns_body}}
         if tmpl_exits and delete:
-            self.es.indices.delete_template(name=doc_type)
+            # self.es.indices.delete_template(name=doc_type)
+            self.es.indices.delete(index)
             print('Delete and put template: %s' % doc_type)
         self.es.indices.put_template(name=doc_type, body=tmpl)
         print('New template %s added' % doc_type)
