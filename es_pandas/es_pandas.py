@@ -25,7 +25,9 @@ class es_pandas(object):
         if self.es_version[0] < 6:
             warnings.warn('Supporting of ElasticSearch 5.x will by deprecated in future version, '
                           'current es version: %s' % self.es_version_str, category=FutureWarning)
-
+    def delete_index(self,index):
+        self.es.indices.delete(index)
+        
     def to_es(self, df, index, doc_type=None, use_index=False, show_progress=True, 
               success_threshold=0.9, _op_type='index', use_pandas_json=False, date_format='iso', **kwargs):
         '''
