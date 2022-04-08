@@ -1,19 +1,21 @@
 import re
 import warnings
 import progressbar
+from decouple import config
+import logging
+import datetime
 
 if not progressbar.__version__.startswith('3.'):
     raise Exception('Incorrect version of progerssbar package, please do pip install progressbar2')
 
 import numpy as np
 import pandas as pd
-
 from pandas.io import json
 from elasticsearch import Elasticsearch, helpers
 
 
 class es_pandas(object):
-    '''Read, write and update large scale pandas DataFrame with Elasticsearch'''
+    '''Read, write and update large scale pandas DataFrame with Elasticsearch'''    
 
     def __init__(self, *args, **kwargs):
         self.es = Elasticsearch(*args, **kwargs)
@@ -22,6 +24,7 @@ class es_pandas(object):
         self.id_col = '_id'
         self.es_version_str = self.es.info()['version']['number']
         self.es_version = [int(x) for x in re.findall("[0-9]+", self.es_version_str)]
+        self.logger = logging
         if self.es_version[0] < 6:
             warnings.warn('Supporting of ElasticSearch 5.x will by deprecated in future version, '
                           'current es version: %s' % self.es_version_str, category=FutureWarning)
@@ -235,6 +238,26 @@ class es_pandas(object):
         self.es.indices.put_template(name=doc_type, body=tmpl)
         print('New template %s added' % doc_type)
 
+    def send_logs(self, index, record):
+            try:
+                data_to_put = {
+                    "filename" : record.filename,
+                    "level" : record.levelname,
+                    "log" : record.msg,
+                    "line" : record.lineno,
+                    "module" : record.module,
+                    "pathname" : record.pathname,
+                    "name" : record.name,
+                    "function_name" : record.funcName,
+                    "source" : "TESTING LOGGER",
+                    "exception_text" : record.exc_text,
+                    "logged_at" : datetime.datetime.now()
+                }
+                # print("Sending to elastic!!")
+                self.es.index(index=index, body=data_to_put)
+                # print("Sent to elastic!!")
+            except:
+                self.logger.error("Error while sending logs to elasticsearch", exc_info=True)
 
 class BarNothing(object):
     def update(self, arg):
